@@ -62,8 +62,21 @@ class FloorsheetTransaction(models.Model):
     )
 
     class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=[
+                    "company",
+                    "trade_date",
+                    "transaction_no",
+                ],
+                name="unique_floorsheet_transaction",
+            )
+        ]
+
         indexes = [
-            models.Index(fields=["company", "trade_date"]),
+            models.Index(
+                fields=["company", "trade_date"],
+            ),
         ]
 
     def __str__(self):
