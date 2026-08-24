@@ -3,15 +3,21 @@ __pycache__/
 *.py[cod]
 *.pyo
 *.pyd
-.Python
 .venv/
 venv/
 
+# Django
+*.log
+db.sqlite3
+media/
+staticfiles/
+
 # Environment
 .env
-.env.local
+.env.*
+!.env.example
 
-# Node
+# Node / Next.js
 node_modules/
 .next/
 out/
@@ -24,12 +30,9 @@ out/
 .DS_Store
 Thumbs.db
 
-# Logs
-*.log
-
 # Testing
 .pytest_cache/
 .coverage
 
-# Database
+# Misc
 *.sqlite3
