@@ -1,5 +1,9 @@
 from rest_framework import serializers
-from .models import BehaviorAnalysis
+
+from .models import (
+    BehaviorAnalysis,
+    NewsMarketCorrelation,
+)
 
 
 class BehaviorAnalysisSerializer(serializers.ModelSerializer):
@@ -14,4 +18,24 @@ class BehaviorAnalysisSerializer(serializers.ModelSerializer):
             "volume_ratio",
             "volume_zscore",
             "volume_anomaly",
+        ]
+
+
+class NewsMarketCorrelationSerializer(serializers.ModelSerializer):
+    company = serializers.CharField(
+        source="company.symbol",
+        read_only=True,
+    )
+
+    class Meta:
+        model = NewsMarketCorrelation
+        fields = [
+            "company",
+            "period_start",
+            "period_end",
+            "news_count_correlation",
+            "sentiment_price_correlation",
+            "sentiment_volume_correlation",
+            "sample_size",
+            "created_at",
         ]
