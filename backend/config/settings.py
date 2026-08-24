@@ -17,17 +17,13 @@ from dotenv import load_dotenv
 from celery.schedules import crontab
 
 BASE_DIR = Path(__file__).resolve().parent.parent
-
 load_dotenv(BASE_DIR / ".env")
-# Build paths inside the project like this: BASE_DIR / 'subdir'.
-BASE_DIR = Path(__file__).resolve().parent.parent
 
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/6.1/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = "django-insecure-1dr35e$#(+#zac^@lm7+qc6dp!-xd9p%&tg6rx(ilezcf+i2&p"
 SECRET_KEY = os.getenv("SECRET_KEY", "fallback-dev-key")
 
 # SECURITY WARNING: don't run with debug turned on in production!
@@ -46,6 +42,7 @@ INSTALLED_APPS = [
     "django.contrib.messages",
     "django.contrib.staticfiles",
     "rest_framework",
+    "drf_spectacular",
     "corsheaders",
     "accounts",
     "companies",
@@ -131,7 +128,7 @@ AUTH_PASSWORD_VALIDATORS = [
 
 LANGUAGE_CODE = "en-us"
 
-TIME_ZONE = "UTC"
+TIME_ZONE = "Asia/Kathmandu"
 
 USE_I18N = True
 
@@ -160,6 +157,29 @@ REST_FRAMEWORK = {
     "DEFAULT_PERMISSION_CLASSES": [
         "rest_framework.permissions.IsAuthenticated",
     ],
+    "DEFAULT_SCHEMA_CLASS": ("drf_spectacular.openapi.AutoSchema"),
+    "EXCEPTION_HANDLER": ("config.exceptions." "custom_exception_handler"),
+}
+
+SPECTACULAR_SETTINGS = {
+    "TITLE": "NEPSE Stock Intelligence API",
+    "DESCRIPTION": (
+        "REST API for NEPSE market data, "
+        "news crawling, categorization, "
+        "behavior analysis and administration."
+    ),
+    "VERSION": "1.0.0",
+    "SERVE_INCLUDE_SCHEMA": False,
+    "SECURITY": [{"bearerAuth": []}],
+    "COMPONENTS": {
+        "securitySchemes": {
+            "bearerAuth": {
+                "type": "http",
+                "scheme": "bearer",
+                "bearerFormat": "JWT",
+            }
+        }
+    },
 }
 
 SIMPLE_JWT = {

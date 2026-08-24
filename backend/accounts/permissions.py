@@ -1,24 +1,54 @@
 from rest_framework.permissions import BasePermission
 
 
-def user_has_role(user, role_name):
-    return user.is_authenticated and (
-        user.is_superuser or user.groups.filter(name=role_name).exists()
-    )
+def get_user_role(user):
+    if not user or not user.is_authenticated:
+        return None
+
+    if user.is_superuser:
+        return "Admin"
+
+    group = user.groups.first()
+
+    if group:
+        return group.name
+
+    return "Viewer"
 
 
 class IsAdminRole(BasePermission):
     def has_permission(self, request, view):
-        return user_has_role(request.user, "Admin")
+        return get_user_role(request.user) == "Admin"
 
 
 class IsAnalystOrAdmin(BasePermission):
     def has_permission(self, request, view):
-        return user_has_role(request.user, "Admin") or user_has_role(
-            request.user, "Analyst"
-        )
+        return get_user_role(request.user) in [
+            "Admin",
+            "Analyst",
+        ]
 
 
 class IsViewerOrAbove(BasePermission):
     def has_permission(self, request, view):
-        return request.user.is_authenticated
+        return get_user_role(request.user) in [
+            "Admin",
+            "Analyst",
+            "Viewer",
+        ]
+
+
+class ReadOnlyViewerOrAbove(BasePermission):
+    def has_permission(self, request, view):
+        if get_user_role(request.user) not in [
+            "Admin",
+            "Analyst",
+            "Viewer",
+        ]:
+            return False
+
+        return request.method in [
+            "GET",
+            "HEAD",
+            "OPTIONS",
+        ]

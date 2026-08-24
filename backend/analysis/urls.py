@@ -1,8 +1,9 @@
 from django.urls import path
 
-from .views import (
+from analysis.views import (
     CompanyBehaviorSummaryView,
     CompanyNewsCorrelationView,
+    BehaviorAnalysisExportView,
 )
 
 urlpatterns = [
@@ -15,5 +16,10 @@ urlpatterns = [
         "companies/<int:company_id>/news-price-correlation/",
         CompanyNewsCorrelationView.as_view(),
         name="company-news-correlation",
+    ),
+    path(
+        "export/behavior/",
+        BehaviorAnalysisExportView.as_view(),
+        name="behavior-export",
     ),
 ]

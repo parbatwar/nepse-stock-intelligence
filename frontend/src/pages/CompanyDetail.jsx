@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
+
 import {
   Bar,
   BarChart,
@@ -13,7 +14,6 @@ import {
 } from "recharts";
 
 import api from "../api";
-import Layout from "../components/Layout";
 
 
 export default function CompanyDetail() {
@@ -27,11 +27,15 @@ export default function CompanyDetail() {
   const [correlation, setCorrelation] = useState(null);
 
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
 
 
   useEffect(() => {
     async function loadData() {
       try {
+        setLoading(true);
+        setError("");
+
         const [
           companiesResponse,
           pricesResponse,
@@ -41,29 +45,88 @@ export default function CompanyDetail() {
           correlationResponse,
         ] = await Promise.all([
           api.get("/companies/"),
-          api.get(`/companies/${id}/prices/`),
-          api.get(`/companies/${id}/behavior-summary/`),
-          api.get(`/news/?company_id=${id}`),
-          api.get(`/companies/${id}/broker-summary/`),
+
+          api.get(
+            `/companies/${id}/prices/?range=30d`
+          ),
+
+          api.get(
+            `/companies/${id}/behavior-summary/`
+          ),
+
+          api.get(
+            `/news/?company_id=${id}`
+          ),
+
+          api.get(
+            `/companies/${id}/broker-summary/`
+          ),
 
           api
-            .get(`/companies/${id}/news-price-correlation/`)
-            .catch(() => ({ data: null })),
+            .get(
+              `/companies/${id}/news-price-correlation/`
+            )
+            .catch(() => ({
+              data: null,
+            })),
         ]);
 
+        const companyList = Array.isArray(
+          companiesResponse.data
+        )
+          ? companiesResponse.data
+          : [];
+
         const selectedCompany =
-          companiesResponse.data.find(
-            (item) => String(item.id) === String(id)
+          companyList.find(
+            (item) =>
+              String(item.id) === String(id)
           );
 
-        setCompany(selectedCompany || null);
-        setPrices(pricesResponse.data);
-        setBehavior(behaviorResponse.data);
-        setNews(newsResponse.data);
-        setBrokers(brokerResponse.data.brokers || []);
-        setCorrelation(correlationResponse.data);
+        setCompany(
+          selectedCompany || null
+        );
+
+        setPrices(
+          Array.isArray(pricesResponse.data)
+            ? pricesResponse.data
+            : []
+        );
+
+        setBehavior(
+          Array.isArray(
+            behaviorResponse.data
+          )
+            ? behaviorResponse.data
+            : []
+        );
+
+        setNews(
+          Array.isArray(newsResponse.data)
+            ? newsResponse.data
+            : []
+        );
+
+        setBrokers(
+          Array.isArray(
+            brokerResponse.data?.brokers
+          )
+            ? brokerResponse.data.brokers
+            : []
+        );
+
+        setCorrelation(
+          correlationResponse.data
+        );
       } catch (error) {
-        console.error("Failed to load company:", error);
+        console.error(
+          "Failed to load company detail:",
+          error
+        );
+
+        setError(
+          "Unable to load company analysis."
+        );
       } finally {
         setLoading(false);
       }
@@ -73,182 +136,284 @@ export default function CompanyDetail() {
   }, [id]);
 
 
-  const latestPrice = prices.at(-1);
-  const previousPrice = prices.at(-2);
+  const latestPrice =
+    prices.length > 0
+      ? prices[prices.length - 1]
+      : null;
+
+  const previousPrice =
+    prices.length > 1
+      ? prices[prices.length - 2]
+      : null;
+
+  const latestBehavior =
+    behavior.length > 0
+      ? behavior[behavior.length - 1]
+      : null;
+
 
   const priceChange = useMemo(() => {
-    if (!latestPrice || !previousPrice) {
+    if (
+      !latestPrice ||
+      !previousPrice
+    ) {
       return null;
     }
 
-    const current = Number(latestPrice.close);
-    const previous = Number(previousPrice.close);
+    const current = Number(
+      latestPrice.close
+    );
 
-    return ((current - previous) / previous) * 100;
-  }, [latestPrice, previousPrice]);
+    const previous = Number(
+      previousPrice.close
+    );
+
+    if (!previous) {
+      return null;
+    }
+
+    return (
+      ((current - previous) /
+        previous) *
+      100
+    );
+  }, [
+    latestPrice,
+    previousPrice,
+  ]);
 
 
-  const latestBehavior = behavior.at(-1);
+  const anomalyCount =
+    behavior.filter(
+      (item) =>
+        item.volume_anomaly === true
+    ).length;
 
-  const anomalies = behavior.filter(
-    (item) => item.volume_anomaly
+
+  const chartData = prices.map(
+    (item) => ({
+      date: item.date
+        ? item.date.slice(5)
+        : "",
+      close: Number(
+        item.close || 0
+      ),
+      volume: Number(
+        item.volume || 0
+      ),
+    })
   );
 
 
-  const chartData = prices.map((item) => ({
-    date: item.date.slice(5),
-    close: Number(item.close),
-    volume: Number(item.volume),
-  }));
-
-
   const topBuyers = [...brokers]
-    .filter((item) => item.net_quantity > 0)
-    .sort((a, b) => b.net_quantity - a.net_quantity)
+    .filter(
+      (item) =>
+        Number(
+          item.net_quantity
+        ) > 0
+    )
+    .sort(
+      (a, b) =>
+        Number(
+          b.net_quantity
+        ) -
+        Number(
+          a.net_quantity
+        )
+    )
     .slice(0, 5);
 
 
   const topSellers = [...brokers]
-    .filter((item) => item.net_quantity < 0)
-    .sort((a, b) => a.net_quantity - b.net_quantity)
+    .filter(
+      (item) =>
+        Number(
+          item.net_quantity
+        ) < 0
+    )
+    .sort(
+      (a, b) =>
+        Number(
+          a.net_quantity
+        ) -
+        Number(
+          b.net_quantity
+        )
+    )
     .slice(0, 5);
 
 
   if (loading) {
     return (
-      <Layout>
-        <p className="text-slate-500">
+      <div className="rounded-xl border border-slate-200 bg-white p-6">
+        <p className="text-sm text-slate-500">
           Loading company analysis...
         </p>
-      </Layout>
+      </div>
+    );
+  }
+
+
+  if (error) {
+    return (
+      <div className="rounded-xl border border-red-200 bg-red-50 p-6">
+        <p className="text-sm text-red-700">
+          {error}
+        </p>
+      </div>
     );
   }
 
 
   if (!company) {
     return (
-      <Layout>
-        <h1 className="text-2xl font-bold">
+      <div className="rounded-xl border border-slate-200 bg-white p-6">
+        <h1 className="text-xl font-semibold text-slate-900">
           Company not found
         </h1>
-      </Layout>
+      </div>
     );
   }
 
 
   return (
-    <Layout>
-      <div className="space-y-8">
+    <div className="space-y-6">
 
-        {/* HEADER */}
-        <div className="flex items-start justify-between">
-          <div>
-            <div className="flex items-center gap-3">
-              <h1 className="text-3xl font-bold text-slate-900">
-                {company.symbol}
-              </h1>
+      {/* Header */}
+      <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+        <div>
+          <div className="flex flex-wrap items-center gap-3">
+            <h1 className="text-2xl font-semibold text-slate-900">
+              {company.symbol}
+            </h1>
 
-              <span className="rounded-full bg-slate-200 px-3 py-1 text-xs font-medium text-slate-600">
+            {company.sector && (
+              <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600">
                 {company.sector}
               </span>
-            </div>
-
-            <p className="mt-2 text-slate-500">
-              {company.name}
-            </p>
+            )}
           </div>
 
-          {latestPrice && (
-            <div className="text-right">
-              <p className="text-sm text-slate-500">
-                Latest Close
-              </p>
-
-              <p className="text-3xl font-bold text-slate-900">
-                Rs. {Number(latestPrice.close).toLocaleString()}
-              </p>
-
-              {priceChange !== null && (
-                <p
-                  className={`mt-1 font-medium ${
-                    priceChange >= 0
-                      ? "text-emerald-600"
-                      : "text-red-600"
-                  }`}
-                >
-                  {priceChange >= 0 ? "+" : ""}
-                  {priceChange.toFixed(2)}%
-                </p>
-              )}
-            </div>
-          )}
+          <p className="mt-1 text-sm text-slate-500">
+            {company.name}
+          </p>
         </div>
 
+        {latestPrice && (
+          <div className="md:text-right">
+            <p className="text-xs uppercase tracking-wide text-slate-400">
+              Latest Close
+            </p>
 
-        {/* METRIC CARDS */}
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
-          <MetricCard
-            label="VWAP Proxy"
-            value={
-              latestBehavior?.vwap
-                ? `Rs. ${Number(
-                    latestBehavior.vwap
-                  ).toLocaleString()}`
-                : "N/A"
-            }
-          />
+            <p className="mt-1 text-2xl font-semibold text-slate-900">
+              Rs.{" "}
+              {Number(
+                latestPrice.close
+              ).toLocaleString()}
+            </p>
 
-          <MetricCard
-            label="Pressure"
-            value={
-              latestBehavior?.pressure_label || "N/A"
-            }
-          />
-
-          <MetricCard
-            label="Volume Z-Score"
-            value={
-              latestBehavior?.volume_zscore !== null &&
-              latestBehavior?.volume_zscore !== undefined
-                ? Number(
-                    latestBehavior.volume_zscore
-                  ).toFixed(2)
-                : "N/A"
-            }
-          />
-
-          <MetricCard
-            label="Volume Anomalies"
-            value={anomalies.length}
-          />
-        </div>
+            {priceChange !== null && (
+              <p
+                className={`mt-1 text-sm font-medium ${
+                  priceChange >= 0
+                    ? "text-emerald-600"
+                    : "text-red-600"
+                }`}
+              >
+                {priceChange >= 0
+                  ? "+"
+                  : ""}
+                {priceChange.toFixed(
+                  2
+                )}
+                %
+              </p>
+            )}
+          </div>
+        )}
+      </div>
 
 
-        {/* PRICE CHART */}
-        <section className="rounded-2xl bg-white p-6 shadow-sm">
-          <div className="mb-6">
-            <h2 className="text-lg font-semibold">
+      {/* Analysis summary */}
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <MetricCard
+          label="VWAP / Price Proxy"
+          value={
+            latestBehavior?.vwap
+              ? `Rs. ${Number(
+                  latestBehavior.vwap
+                ).toLocaleString()}`
+              : "N/A"
+          }
+        />
+
+        <MetricCard
+          label="Buy / Sell Pressure"
+          value={
+            latestBehavior?.pressure_label ||
+            "N/A"
+          }
+        />
+
+        <MetricCard
+          label="Volume Z-Score"
+          value={
+            latestBehavior?.volume_zscore !==
+              null &&
+            latestBehavior?.volume_zscore !==
+              undefined
+              ? Number(
+                  latestBehavior.volume_zscore
+                ).toFixed(2)
+              : "N/A"
+          }
+        />
+
+        <MetricCard
+          label="Volume Anomalies"
+          value={anomalyCount}
+        />
+      </div>
+
+
+      {/* Charts */}
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
+
+        {/* Price */}
+        <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+          <div className="mb-4">
+            <h2 className="text-base font-semibold text-slate-900">
               30-Day Price Trend
             </h2>
 
-            <p className="text-sm text-slate-500">
+            <p className="mt-1 text-sm text-slate-500">
               Daily closing price
             </p>
           </div>
 
-          <div className="h-80">
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={chartData}>
-                <CartesianGrid strokeDasharray="3 3" />
+          <div className="h-72">
+            <ResponsiveContainer
+              width="100%"
+              height="100%"
+            >
+              <LineChart
+                data={chartData}
+              >
+                <CartesianGrid
+                  strokeDasharray="3 3"
+                />
 
                 <XAxis
                   dataKey="date"
-                  fontSize={12}
+                  fontSize={11}
                 />
 
                 <YAxis
-                  domain={["auto", "auto"]}
-                  fontSize={12}
+                  domain={[
+                    "auto",
+                    "auto",
+                  ]}
+                  fontSize={11}
                 />
 
                 <Tooltip />
@@ -266,29 +431,38 @@ export default function CompanyDetail() {
         </section>
 
 
-        {/* VOLUME */}
-        <section className="rounded-2xl bg-white p-6 shadow-sm">
-          <div className="mb-6">
-            <h2 className="text-lg font-semibold">
+        {/* Volume */}
+        <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+          <div className="mb-4">
+            <h2 className="text-base font-semibold text-slate-900">
               Trading Volume
             </h2>
 
-            <p className="text-sm text-slate-500">
+            <p className="mt-1 text-sm text-slate-500">
               Daily traded quantity
             </p>
           </div>
 
           <div className="h-72">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={chartData}>
-                <CartesianGrid strokeDasharray="3 3" />
+            <ResponsiveContainer
+              width="100%"
+              height="100%"
+            >
+              <BarChart
+                data={chartData}
+              >
+                <CartesianGrid
+                  strokeDasharray="3 3"
+                />
 
                 <XAxis
                   dataKey="date"
-                  fontSize={12}
+                  fontSize={11}
                 />
 
-                <YAxis fontSize={12} />
+                <YAxis
+                  fontSize={11}
+                />
 
                 <Tooltip />
 
@@ -301,63 +475,69 @@ export default function CompanyDetail() {
           </div>
         </section>
 
-
-        {/* BROKERS */}
-        <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
-
-          <BrokerCard
-            title="Top Net Buyers"
-            brokers={topBuyers}
-          />
-
-          <BrokerCard
-            title="Top Net Sellers"
-            brokers={topSellers}
-          />
-
-        </div>
+      </div>
 
 
-        {/* NEWS */}
-        <section className="rounded-2xl bg-white p-6 shadow-sm">
-          <div className="flex items-center justify-between">
-            <div>
-              <h2 className="text-lg font-semibold">
-                Related News
-              </h2>
+      {/* Broker activity */}
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
+        <BrokerCard
+          title="Most Active Buyers"
+          brokers={topBuyers}
+        />
 
-              <p className="text-sm text-slate-500">
-                Automatically categorized articles
-              </p>
-            </div>
+        <BrokerCard
+          title="Most Active Sellers"
+          brokers={topSellers}
+        />
+      </div>
 
-            <span className="rounded-full bg-slate-100 px-3 py-1 text-sm">
-              {news.length} articles
-            </span>
+
+      {/* News */}
+      <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <h2 className="text-base font-semibold text-slate-900">
+              Categorized News
+            </h2>
+
+            <p className="mt-1 text-sm text-slate-500">
+              Articles tagged to this company
+            </p>
           </div>
 
-          <div className="mt-6 divide-y divide-slate-100">
-            {news.length === 0 ? (
-              <p className="py-6 text-sm text-slate-500">
-                No categorized articles available.
-              </p>
-            ) : (
-              news.slice(0, 8).map((article) => (
+          <span className="text-sm text-slate-500">
+            {news.length} articles
+          </span>
+        </div>
+
+        <div className="mt-4 divide-y divide-slate-100">
+          {news.length === 0 ? (
+            <p className="py-5 text-sm text-slate-500">
+              No categorized articles available.
+            </p>
+          ) : (
+            news
+              .slice(0, 8)
+              .map((article) => (
                 <a
                   key={article.id}
                   href={article.url}
                   target="_blank"
                   rel="noreferrer"
-                  className="block py-4 transition hover:bg-slate-50"
+                  className="block py-4"
                 >
-                  <div className="flex items-start justify-between gap-6">
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                     <div>
-                      <h3 className="font-medium text-slate-900">
-                        {article.headline}
+                      <h3 className="text-sm font-medium text-slate-900">
+                        {
+                          article.headline
+                        }
                       </h3>
 
                       <p className="mt-1 text-xs text-slate-500">
-                        {article.source}
+                        {
+                          article.source
+                        }
                       </p>
                     </div>
 
@@ -369,69 +549,69 @@ export default function CompanyDetail() {
                   </div>
                 </a>
               ))
-            )}
-          </div>
-        </section>
-
-
-        {/* CORRELATION */}
-        <section className="rounded-2xl bg-white p-6 shadow-sm">
-          <h2 className="text-lg font-semibold">
-            News / Market Correlation
-          </h2>
-
-          <p className="mt-1 text-sm text-slate-500">
-            Exploratory analysis only — not a trading
-            signal.
-          </p>
-
-          {correlation ? (
-            <div className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-3">
-
-              <MetricCard
-                label="News vs Next-Day Volume"
-                value={formatCorrelation(
-                  correlation.news_count_correlation
-                )}
-              />
-
-              <MetricCard
-                label="Sentiment vs Next-Day Price"
-                value={formatCorrelation(
-                  correlation.sentiment_price_correlation
-                )}
-              />
-
-              <MetricCard
-                label="Sentiment vs Next-Day Volume"
-                value={formatCorrelation(
-                  correlation.sentiment_volume_correlation
-                )}
-              />
-
-            </div>
-          ) : (
-            <p className="mt-4 text-sm text-slate-500">
-              Not enough overlapping news data for a
-              meaningful correlation.
-            </p>
           )}
-        </section>
+        </div>
+      </section>
 
-      </div>
-    </Layout>
+
+      {/* Correlation */}
+      <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+        <h2 className="text-base font-semibold text-slate-900">
+          News / Market Correlation
+        </h2>
+
+        <p className="mt-1 text-sm text-slate-500">
+          Exploratory comparison of news activity
+          with subsequent market movement.
+        </p>
+
+        {correlation ? (
+          <div className="mt-5 grid grid-cols-1 gap-4 md:grid-cols-3">
+            <SmallMetric
+              label="News vs Next-Day Volume"
+              value={formatCorrelation(
+                correlation.news_count_correlation
+              )}
+            />
+
+            <SmallMetric
+              label="Sentiment vs Next-Day Price"
+              value={formatCorrelation(
+                correlation.sentiment_price_correlation
+              )}
+            />
+
+            <SmallMetric
+              label="Sentiment vs Next-Day Volume"
+              value={formatCorrelation(
+                correlation.sentiment_volume_correlation
+              )}
+            />
+          </div>
+        ) : (
+          <p className="mt-4 text-sm text-slate-500">
+            Not enough overlapping data for
+            a meaningful correlation.
+          </p>
+        )}
+      </section>
+
+    </div>
   );
 }
 
 
-function MetricCard({ label, value }) {
+function MetricCard({
+  label,
+  value,
+}) {
   return (
-    <div className="rounded-xl border border-slate-200 bg-white p-5">
+    <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
       <p className="text-sm text-slate-500">
         {label}
       </p>
 
-      <p className="mt-2 text-2xl font-bold text-slate-900">
+      <p className="mt-2 text-xl font-semibold text-slate-900">
         {value}
       </p>
     </div>
@@ -439,44 +619,77 @@ function MetricCard({ label, value }) {
 }
 
 
-function BrokerCard({ title, brokers }) {
+function SmallMetric({
+  label,
+  value,
+}) {
   return (
-    <section className="rounded-2xl bg-white p-6 shadow-sm">
-      <h2 className="text-lg font-semibold">
+    <div className="rounded-lg bg-slate-50 p-4">
+      <p className="text-xs text-slate-500">
+        {label}
+      </p>
+
+      <p className="mt-2 text-lg font-semibold text-slate-900">
+        {value}
+      </p>
+    </div>
+  );
+}
+
+
+function BrokerCard({
+  title,
+  brokers,
+}) {
+  return (
+    <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+      <h2 className="text-base font-semibold text-slate-900">
         {title}
       </h2>
 
-      <div className="mt-5 space-y-3">
+      <div className="mt-4 space-y-2">
         {brokers.length === 0 ? (
           <p className="text-sm text-slate-500">
             No sampled floorsheet data available.
           </p>
         ) : (
-          brokers.map((broker) => (
-            <div
-              key={broker.broker}
-              className="flex items-center justify-between rounded-lg bg-slate-50 px-4 py-3"
-            >
-              <span className="font-medium">
-                Broker {broker.broker}
-              </span>
-
-              <span
-                className={
-                  broker.net_quantity >= 0
-                    ? "font-semibold text-emerald-600"
-                    : "font-semibold text-red-600"
+          brokers.map(
+            (broker) => (
+              <div
+                key={
+                  broker.broker
                 }
+                className="flex items-center justify-between rounded-lg bg-slate-50 px-4 py-3"
               >
-                {broker.net_quantity >= 0
-                  ? "+"
-                  : ""}
-                {Number(
-                  broker.net_quantity
-                ).toLocaleString()}
-              </span>
-            </div>
-          ))
+                <span className="text-sm font-medium text-slate-700">
+                  Broker{" "}
+                  {
+                    broker.broker
+                  }
+                </span>
+
+                <span
+                  className={`text-sm font-semibold ${
+                    Number(
+                      broker.net_quantity
+                    ) >= 0
+                      ? "text-emerald-600"
+                      : "text-red-600"
+                  }`}
+                >
+                  {Number(
+                    broker.net_quantity
+                  ) >= 0
+                    ? "+"
+                    : ""}
+
+                  {Number(
+                    broker.net_quantity
+                  ).toLocaleString()}
+                </span>
+              </div>
+            )
+          )
         )}
       </div>
     </section>
@@ -484,32 +697,55 @@ function BrokerCard({ title, brokers }) {
 }
 
 
-function SentimentBadge({ sentiment }) {
+function SentimentBadge({
+  sentiment,
+}) {
   const styles = {
     positive:
-      "bg-emerald-100 text-emerald-700",
+      "bg-emerald-50 text-emerald-700",
+
     negative:
-      "bg-red-100 text-red-700",
+      "bg-red-50 text-red-700",
+
     neutral:
-      "bg-slate-100 text-slate-700",
+      "bg-slate-100 text-slate-600",
   };
+
+  const value =
+    sentiment || "neutral";
 
   return (
     <span
-      className={`rounded-full px-3 py-1 text-xs font-medium ${
-        styles[sentiment] || styles.neutral
-      }`}
+      className={`
+        w-fit
+        rounded-full
+        px-2.5
+        py-1
+        text-xs
+        font-medium
+        ${
+          styles[value] ||
+          styles.neutral
+        }
+      `}
     >
-      {sentiment || "neutral"}
+      {value}
     </span>
   );
 }
 
 
-function formatCorrelation(value) {
-  if (value === null || value === undefined) {
+function formatCorrelation(
+  value
+) {
+  if (
+    value === null ||
+    value === undefined
+  ) {
     return "Insufficient data";
   }
 
-  return Number(value).toFixed(2);
+  return Number(
+    value
+  ).toFixed(2);
 }

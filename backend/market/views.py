@@ -2,7 +2,6 @@ from datetime import date
 
 from django.shortcuts import get_object_or_404
 from rest_framework.generics import ListAPIView
-from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
@@ -26,7 +25,25 @@ class CompanyPriceListView(ListAPIView):
             pk=self.kwargs["company_id"],
         )
 
-        return DailyPrice.objects.filter(company=company).order_by("date")
+        raw_range = self.request.query_params.get(
+            "range",
+            "30d",
+        )
+
+        qs = DailyPrice.objects.filter(company=company)
+
+        if raw_range.endswith("d"):
+            try:
+                days = int(raw_range[:-1])
+
+                ids = list(qs.order_by("-date").values_list("id", flat=True)[:days])
+
+                qs = qs.filter(id__in=ids)
+
+            except ValueError:
+                pass
+
+        return qs.order_by("date")
 
 
 class CompanyFloorsheetView(ListAPIView):
