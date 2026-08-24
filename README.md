@@ -8,6 +8,16 @@ The project was developed as a time-boxed technical assignment using Django REST
 
 ---
 
+## Area Prioritized
+
+Given the time-boxed nature of the assignment, I prioritized the **backend architecture, data pipeline, API design, RBAC, and behavior-analysis workflow**.
+
+The goal was to make the system reliable end-to-end: crawling data, storing it cleanly in PostgreSQL, running background jobs with Celery, enforcing Admin/Analyst/Viewer permissions on the server, exposing clear REST APIs, and producing interpretable market-behavior analysis.
+
+For news categorization, I intentionally used a **rule-based multi-label entity/alias matching approach** rather than training a machine-learning model. This was a deliberate trade-off because the watchlist is small and fixed, and the approach is fast, explainable, reproducible, and practical within the assignment time limit.
+
+The frontend was kept intentionally simple and functional, focusing on clearly tying together company prices, volume, broker activity, news, correlations, review workflows, and exports rather than spending excessive time on visual complexity.
+
 ## Features
 
 - Multi-source financial news crawling
