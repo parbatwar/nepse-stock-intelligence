@@ -92,7 +92,7 @@ function Layout() {
           transition-all
         "
       >
-        {/* Logo / title */}
+        {/* Title */}
         <div
           className="
             flex h-20 items-center
@@ -101,22 +101,9 @@ function Layout() {
             px-4 lg:px-6
           "
         >
-          <div
-            className="
-              flex h-10 w-10
-              flex-shrink-0
-              items-center justify-center
-              rounded-xl
-              bg-blue-600
-              text-sm font-bold
-            "
-          >
-            NS
-          </div>
-
           <div className="ml-3 hidden lg:block">
             <h1 className="text-base font-bold">
-              NEPSE Intelligence
+              NEPSE
             </h1>
 
             <p className="mt-0.5 text-xs text-slate-400">
@@ -223,11 +210,11 @@ function Layout() {
         >
           <div>
             <h2 className="text-lg font-bold text-slate-900 md:text-xl">
-              NEPSE Stock Intelligence
+              NEPSE Stock
             </h2>
 
             <p className="hidden text-sm text-slate-500 md:block">
-              Market data, news intelligence and behavior analysis
+              Market data, news and behavior analysis
             </p>
           </div>
 
