@@ -13,11 +13,12 @@ from .serializers import (
     DailyPriceSerializer,
     FloorsheetTransactionSerializer,
 )
+from accounts.permissions import IsViewerOrAbove
 
 
 class CompanyPriceListView(ListAPIView):
     serializer_class = DailyPriceSerializer
-    permission_classes = [AllowAny]
+    permission_classes = [IsViewerOrAbove]
 
     def get_queryset(self):
         company = get_object_or_404(
@@ -30,7 +31,7 @@ class CompanyPriceListView(ListAPIView):
 
 class CompanyFloorsheetView(ListAPIView):
     serializer_class = FloorsheetTransactionSerializer
-    permission_classes = [AllowAny]
+    permission_classes = [IsViewerOrAbove]
 
     def get_queryset(self):
         company = get_object_or_404(
@@ -51,7 +52,7 @@ class CompanyFloorsheetView(ListAPIView):
 
 
 class BrokerSummaryView(APIView):
-    permission_classes = [AllowAny]
+    permission_classes = [IsViewerOrAbove]
 
     def get(self, request, company_id):
         company = get_object_or_404(

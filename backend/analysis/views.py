@@ -5,6 +5,7 @@ from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from accounts.permissions import IsViewerOrAbove
 from companies.models import Company
 from .models import BehaviorAnalysis, NewsMarketCorrelation
 from .serializers import (
@@ -15,7 +16,7 @@ from .serializers import (
 
 class CompanyBehaviorSummaryView(ListAPIView):
     serializer_class = BehaviorAnalysisSerializer
-    permission_classes = [AllowAny]
+    permission_classes = [IsViewerOrAbove]
 
     def get_queryset(self):
         company = get_object_or_404(
@@ -27,7 +28,7 @@ class CompanyBehaviorSummaryView(ListAPIView):
 
 
 class CompanyNewsCorrelationView(APIView):
-    permission_classes = [AllowAny]
+    permission_classes = [IsViewerOrAbove]
 
     def get(self, request, company_id):
         company = get_object_or_404(
