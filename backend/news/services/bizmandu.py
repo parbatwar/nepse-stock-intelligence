@@ -7,10 +7,9 @@ from news.models import NewsArticle
 from .base import BaseNewsCrawler
 
 
-class ShareSansarCrawler(BaseNewsCrawler):
-    source_name = "ShareSansar"
-
-    listing_url = "https://www.sharesansar.com/category/latest"
+class BizmanduCrawler(BaseNewsCrawler):
+    source_name = "Bizmandu"
+    listing_url = "https://bizmandu.com/content/category/market.html"
 
     def crawl(self):
         response = self.get(self.listing_url)
@@ -22,22 +21,17 @@ class ShareSansarCrawler(BaseNewsCrawler):
 
         created_count = 0
 
-        cards = soup.select("div.featured-news-list")
+        cards = soup.select("div.news-title")
 
         for card in cards[:20]:
-            title_element = card.select_one("h4.featured-news-title")
-
-            if not title_element:
-                continue
-
-            link = title_element.find_parent("a")
+            link = card.select_one("h1.title-lg a")
 
             if not link:
                 continue
 
             url = link.get("href")
 
-            headline = title_element.get_text(
+            headline = link.get_text(
                 " ",
                 strip=True,
             )
@@ -45,32 +39,32 @@ class ShareSansarCrawler(BaseNewsCrawler):
             if not url or not headline:
                 continue
 
-            # Prevent duplicate articles
             if NewsArticle.objects.filter(url=url).exists():
                 continue
 
             published_at = None
 
-            date_element = card.select_one("span.text-org")
+            try:
+                # Example:
+                # https://bizmandu.com/content/20260823182818.html
 
-            if date_element:
-                date_text = date_element.get_text(
-                    " ",
-                    strip=True,
+                filename = url.rstrip("/").split("/")[-1]
+
+                timestamp = filename.replace(
+                    ".html",
+                    "",
                 )
 
-                try:
+                if len(timestamp) == 14 and timestamp.isdigit():
                     dt = datetime.strptime(
-                        date_text,
-                        "%A, %B %d, %Y",
+                        timestamp,
+                        "%Y%m%d%H%M%S",
                     )
 
-                    # Listing gives date but no exact time.
-                    # Store midnight for that publication date.
                     published_at = timezone.make_aware(dt)
 
-                except ValueError:
-                    published_at = None
+            except ValueError:
+                published_at = None
 
             try:
                 article_response = self.get(url)
@@ -81,9 +75,10 @@ class ShareSansarCrawler(BaseNewsCrawler):
                 )
 
                 body_element = (
-                    article_soup.select_one(".newsdetail-content")
-                    or article_soup.select_one(".news-content")
-                    or article_soup.select_one("article")
+                    article_soup.select_one("article")
+                    or article_soup.select_one(".content")
+                    or article_soup.select_one(".detail-content")
+                    or article_soup.select_one(".news-detail")
                 )
 
                 if body_element:
@@ -118,7 +113,7 @@ class ShareSansarCrawler(BaseNewsCrawler):
                 created_count += 1
 
             except Exception as exc:
-                print(f"ShareSansar failed " f"{url}: {exc}")
+                print(f"Bizmandu failed " f"{url}: {exc}")
 
         return {
             "source": self.source_name,

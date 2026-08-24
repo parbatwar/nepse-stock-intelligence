@@ -1,4 +1,5 @@
 from datetime import datetime
+from urllib.parse import urljoin
 
 from bs4 import BeautifulSoup
 from django.utils import timezone
@@ -7,10 +8,9 @@ from news.models import NewsArticle
 from .base import BaseNewsCrawler
 
 
-class ShareSansarCrawler(BaseNewsCrawler):
-    source_name = "ShareSansar"
-
-    listing_url = "https://www.sharesansar.com/category/latest"
+class MeroLaganiCrawler(BaseNewsCrawler):
+    source_name = "MeroLagani"
+    listing_url = "https://eng.merolagani.com/NewsList.aspx"
 
     def crawl(self):
         response = self.get(self.listing_url)
@@ -22,36 +22,38 @@ class ShareSansarCrawler(BaseNewsCrawler):
 
         created_count = 0
 
-        cards = soup.select("div.featured-news-list")
+        cards = soup.select("div.media-news")
 
         for card in cards[:20]:
-            title_element = card.select_one("h4.featured-news-title")
-
-            if not title_element:
-                continue
-
-            link = title_element.find_parent("a")
+            link = card.select_one("h4.media-title a")
 
             if not link:
                 continue
 
-            url = link.get("href")
+            href = link.get("href")
 
-            headline = title_element.get_text(
+            if not href:
+                continue
+
+            url = urljoin(
+                self.listing_url,
+                href,
+            )
+
+            headline = link.get_text(
                 " ",
                 strip=True,
             )
 
-            if not url or not headline:
+            if not headline:
                 continue
 
-            # Prevent duplicate articles
             if NewsArticle.objects.filter(url=url).exists():
                 continue
 
             published_at = None
 
-            date_element = card.select_one("span.text-org")
+            date_element = card.select_one("span.media-label")
 
             if date_element:
                 date_text = date_element.get_text(
@@ -62,11 +64,9 @@ class ShareSansarCrawler(BaseNewsCrawler):
                 try:
                     dt = datetime.strptime(
                         date_text,
-                        "%A, %B %d, %Y",
+                        "%b %d, %Y %I:%M %p",
                     )
 
-                    # Listing gives date but no exact time.
-                    # Store midnight for that publication date.
                     published_at = timezone.make_aware(dt)
 
                 except ValueError:
@@ -81,8 +81,9 @@ class ShareSansarCrawler(BaseNewsCrawler):
                 )
 
                 body_element = (
-                    article_soup.select_one(".newsdetail-content")
+                    article_soup.select_one(".news-detail")
                     or article_soup.select_one(".news-content")
+                    or article_soup.select_one("[id*='divNews']")
                     or article_soup.select_one("article")
                 )
 
@@ -118,7 +119,7 @@ class ShareSansarCrawler(BaseNewsCrawler):
                 created_count += 1
 
             except Exception as exc:
-                print(f"ShareSansar failed " f"{url}: {exc}")
+                print(f"MeroLagani failed " f"{url}: {exc}")
 
         return {
             "source": self.source_name,

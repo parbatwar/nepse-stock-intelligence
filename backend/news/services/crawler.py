@@ -1,9 +1,13 @@
+from .bizmandu import BizmanduCrawler
+from .merolagani import MeroLaganiCrawler
 from .sharesansar import ShareSansarCrawler
 
 
 def crawl_all_news():
     crawlers = [
         ShareSansarCrawler(),
+        MeroLaganiCrawler(),
+        BizmanduCrawler(),
     ]
 
     results = []
