@@ -14,6 +14,7 @@ import os
 from pathlib import Path
 from datetime import timedelta
 from dotenv import load_dotenv
+from celery.schedules import crontab
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -184,3 +185,17 @@ CELERY_RESULT_SERIALIZER = "json"
 CELERY_TIMEZONE = "Asia/Kathmandu"
 
 CELERY_BEAT_SCHEDULER = "django_celery_beat.schedulers:DatabaseScheduler"
+
+CELERY_BEAT_SCHEDULE = {
+    "crawl-news-every-2-hours": {
+        "task": "crawler.tasks.run_news_pipeline",
+        "schedule": crontab(minute=0, hour="*/2"),
+    },
+    "refresh-market-every-day": {
+        "task": "crawler.tasks.refresh_market_pipeline",
+        "schedule": crontab(
+            minute=30,
+            hour=18,
+        ),
+    },
+}
