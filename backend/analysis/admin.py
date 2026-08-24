@@ -1,3 +1,5 @@
 from django.contrib import admin
+from .models import BehaviorAnalysis, NewsMarketCorrelation
 
-# Register your models here.
+admin.site.register(BehaviorAnalysis)
+admin.site.register(NewsMarketCorrelation)
