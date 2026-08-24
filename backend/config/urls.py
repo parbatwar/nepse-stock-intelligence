@@ -23,4 +23,5 @@ urlpatterns = [
     path("api/", include("market.urls")),
     path("api/", include("analysis.urls")),
     path("api/news/", include("news.urls")),
+    path("api/admin/", include("crawler.urls")),
 ]
