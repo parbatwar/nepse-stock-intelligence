@@ -1,116 +1,133 @@
 from datetime import datetime
-from decimal import Decimal
 
-import requests
 from bs4 import BeautifulSoup
+from playwright.sync_api import sync_playwright
 
 from companies.models import Company
 from market.models import FloorsheetTransaction
 
-BASE_URL = "https://eng.merolagani.com/Floorsheet.aspx"
-
-
-def clean_number(value):
-    if value is None:
-        return None
-
-    value = value.replace(",", "").strip()
-
-    if not value:
-        return None
-
-    return value
-
-
-def fetch_floorsheet_page():
-    response = requests.get(
-        BASE_URL,
-        timeout=30,
-        headers={
-            "User-Agent": ("NEPSEStockIntelligence/1.0 " "(technical-assignment)")
-        },
-    )
-
-    response.raise_for_status()
-
-    return response.text
-
-
-def parse_floorsheet(html):
-    soup = BeautifulSoup(html, "lxml")
-
-    rows = []
-
-    table = soup.find("table")
-
-    if not table:
-        return rows
-
-    tbody = table.find("tbody")
-
-    if not tbody:
-        return rows
-
-    for tr in tbody.find_all("tr"):
-        cells = [td.get_text(" ", strip=True) for td in tr.find_all("td")]
-
-        # Expected:
-        # index, transaction no, symbol,
-        # buyer, seller, quantity, rate, amount
-        if len(cells) < 8:
-            continue
-
-        rows.append(
-            {
-                "transaction_no": cells[1],
-                "symbol": cells[2],
-                "buyer_broker": cells[3],
-                "seller_broker": cells[4],
-                "quantity": clean_number(cells[5]),
-                "rate": clean_number(cells[6]),
-                "amount": clean_number(cells[7]),
-            }
-        )
-
-    return rows
+FLOORSHEET_URL = "https://eng.merolagani.com/Floorsheet.aspx"
 
 
 def import_floorsheet(trade_date):
-    html = fetch_floorsheet_page()
+    """
+    trade_date: datetime.date
+    """
 
-    rows = parse_floorsheet(html)
-
-    tracked = {
+    tracked_companies = {
         company.symbol: company for company in Company.objects.filter(is_active=True)
     }
 
-    created_count = 0
+    date_text = trade_date.strftime("%m/%d/%Y")
 
-    for row in rows:
-        symbol = row["symbol"]
+    with sync_playwright() as p:
+        browser = p.chromium.launch(headless=True)
 
-        if symbol not in tracked:
-            continue
+        page = browser.new_page()
 
-        company = tracked[symbol]
-
-        _, created = FloorsheetTransaction.objects.get_or_create(
-            company=company,
-            trade_date=trade_date,
-            transaction_no=row["transaction_no"],
-            defaults={
-                "buyer_broker": row["buyer_broker"],
-                "seller_broker": row["seller_broker"],
-                "quantity": int(row["quantity"]),
-                "rate": Decimal(row["rate"]),
-                "amount": (Decimal(row["amount"]) if row["amount"] else None),
-            },
+        page.goto(
+            FLOORSHEET_URL,
+            wait_until="domcontentloaded",
+            timeout=60000,
         )
 
-        if created:
-            created_count += 1
+        # Fill the actual MeroLagani historical-date field
+        date_input = page.locator(
+            'input[name="ctl00$ContentPlaceHolder1$txtFloorsheetDateFilter"]'
+        )
+
+        date_input.fill(date_text)
+
+        # MeroLagani uses an ASP.NET Search link/button.
+        search_button = page.locator('a[title="Search"]').last
+
+        search_button.click()
+
+        # Wait for the result table to update.
+        page.wait_for_timeout(2000)
+
+        html = page.content()
+
+        browser.close()
+
+    soup = BeautifulSoup(
+        html,
+        "lxml",
+    )
+
+    # IMPORTANT:
+    # Verify that the page actually loaded the requested date.
+    page_text = soup.get_text(
+        " ",
+        strip=True,
+    )
+
+    expected_date = trade_date.strftime("%Y/%m/%d")
+
+    if expected_date not in page_text:
+        raise ValueError(
+            f"MeroLagani did not return requested date "
+            f"{trade_date}. Expected to find "
+            f"{expected_date} in response."
+        )
+
+    created = 0
+    skipped = 0
+
+    rows = soup.select("tbody tr")
+
+    for row in rows:
+        cells = row.find_all("td")
+
+        if len(cells) < 8:
+            continue
+
+        try:
+            transaction_no = cells[1].get_text(" ", strip=True)
+
+            symbol = cells[2].get_text(" ", strip=True)
+
+            buyer = cells[3].get_text(" ", strip=True)
+
+            seller = cells[4].get_text(" ", strip=True)
+
+            quantity_text = cells[5].get_text(" ", strip=True).replace(",", "")
+
+            rate_text = cells[6].get_text(" ", strip=True).replace(",", "")
+
+            amount_text = cells[7].get_text(" ", strip=True).replace(",", "")
+
+            if symbol not in tracked_companies:
+                continue
+
+            company = tracked_companies[symbol]
+
+            _, was_created = FloorsheetTransaction.objects.update_or_create(
+                company=company,
+                trade_date=trade_date,
+                transaction_no=transaction_no,
+                defaults={
+                    "buyer_broker": buyer,
+                    "seller_broker": seller,
+                    "quantity": int(quantity_text),
+                    "rate": rate_text,
+                    "amount": amount_text,
+                },
+            )
+
+            if was_created:
+                created += 1
+            else:
+                skipped += 1
+
+        except (
+            ValueError,
+            IndexError,
+        ) as exc:
+            print(f"Skipping malformed row: " f"{exc}")
 
     return {
-        "rows_found": len(rows),
-        "created": created_count,
+        "date": trade_date.isoformat(),
+        "created": created,
+        "existing_or_updated": skipped,
     }

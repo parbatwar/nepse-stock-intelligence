@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import datetime
 
 from django.core.management.base import BaseCommand
 
@@ -6,26 +6,21 @@ from market.floorsheet import import_floorsheet
 
 
 class Command(BaseCommand):
-    help = "Import representative NEPSE floorsheet transactions"
+    help = "Import historical MeroLagani floorsheet"
 
     def add_arguments(self, parser):
         parser.add_argument(
             "--date",
-            type=str,
-            required=False,
+            required=True,
+            help="Trading date in YYYY-MM-DD format",
         )
 
     def handle(self, *args, **options):
-        raw_date = options.get("date")
-
-        trade_date = date.fromisoformat(raw_date) if raw_date else date.today()
+        trade_date = datetime.strptime(
+            options["date"],
+            "%Y-%m-%d",
+        ).date()
 
         result = import_floorsheet(trade_date)
 
-        self.stdout.write(
-            self.style.SUCCESS(
-                f"Rows found: {result['rows_found']}, "
-                f"tracked transactions created: "
-                f"{result['created']}"
-            )
-        )
+        self.stdout.write(self.style.SUCCESS(str(result)))
